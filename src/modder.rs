@@ -27,8 +27,15 @@ enum Ending {
 }
 
 #[derive(Debug)]
+enum HScene {
+    None,
+    Immediate,
+    Later,
+}
+
+#[derive(Debug)]
 struct ChoiceDetails {
-    h_scene: bool,
+    h_scene: HScene,
     malo_rep_change: Option<RepChange>,
     bad_ending: Option<String>,
     ending: Option<String>,
@@ -36,7 +43,7 @@ struct ChoiceDetails {
 }
 
 impl ChoiceDetails {
-    fn new(h_scene: bool, malo_rep_change: Option<RepChange>, bad_ending: Option<String>, ending: Option<String>, route_divergence: Option<String>) -> Self {
+    fn new(h_scene: HScene, malo_rep_change: Option<RepChange>, bad_ending: Option<String>, ending: Option<String>, route_divergence: Option<String>) -> Self {
         ChoiceDetails {
             h_scene,
             malo_rep_change,
@@ -125,8 +132,10 @@ fn format_choice(choice: &str, choice_details: ChoiceDetails, named_malo: bool, 
         }
     }
 
-    if h_scene {
-        choice = format!("{} [pink]Sex Scene", choice);
+    match h_scene {
+        HScene::None => (),
+        HScene::Immediate => choice = format!("{} [pink]Sex Scene", choice),
+        HScene::Later => choice = format!("{} [pink]Sex Scene Later", choice),
     }
 
     if let Some(ending) = bad_ending {
@@ -155,8 +164,8 @@ fn format_choice(choice: &str, choice_details: ChoiceDetails, named_malo: bool, 
 fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
     // The dev usually keeps relevant variables and comments immediately after the start of the menu item
     let mut in_variables = true;
-    // Indicates if the choice immediately leads to an H-Scene
-    let mut h_scene = false;
+    // Indicates if the choice leads to an H-Scene
+    let mut h_scene = HScene::None;
     // Holds the change in player's reputation with MalO
     let mut malo_rep_change = None;
     // Holds the bad ending, if any
@@ -197,7 +206,7 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
                     }
                 }
                 else if H_PATTERN.is_match(cleaned_line) {
-                    h_scene = true;
+                    h_scene = HScene::Immediate;
                 }
                 // Some of these endings can actually branch to different endings based on player choices
                 // But we don't have access to player data, so we can only guess
@@ -213,6 +222,11 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
                 else if cleaned_line.contains("label bye_bye_MalO:") {
                     ending = Some("True Ending".to_string());
                 }
+                else if cleaned_line.contains("a3_lied_zellen = True") {
+                    // Not sure how to do this as it can lead to an h-scene later if malO is uncaged
+                    // But can also not lead to an h-scene at all
+                    //h_scene = HScene::Later;
+                }
             }
             else {
                 in_variables = false;
@@ -220,7 +234,7 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
         }
         // Some H-Scenes may either set the _h variable or check if hscene_on is set, so both checks are needed
         else if cleaned_line.contains("persistent.hscene_on") {
-            h_scene = true;
+            h_scene = HScene::Immediate;
         }
         // Jumps may indicate an ending
         else if cleaned_line.starts_with("jump") {
@@ -234,8 +248,9 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
         }
     }
 
-    if h_scene {
-        println!("Choice leads to H-Scene");
+    match h_scene {
+        HScene::None => (),
+        _ => println!("Choice leads to H-Scene"),
     }
 
     ChoiceDetails::new(h_scene, malo_rep_change, bad_ending, ending, route_override)
