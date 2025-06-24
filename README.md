@@ -1,4 +1,4 @@
-# Malovent Automodder
+# MalOvent Automodder
 
 A CLI tool for automatically modifying **MalOvent's** `script.rpy` Ren'Py file to embed useful walkthrough information such as:
 
