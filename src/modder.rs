@@ -53,20 +53,25 @@ pub fn mod_file(file_path: &str) -> Result<(), ModderError> {
     let mut modified_lines = lines.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     let mut menu_spaces = None; // If None, not in a menu block
     let mut named_malo = false;
+    // Only care about modifying menu item lines
     for (i, line) in lines.iter().enumerate() {
         let cleaned_line = line.trim();
+        // Once MalO is named, we can use that name when formatting choices
         if cleaned_line.starts_with("persistent.malOname = ") {
             named_malo = true;
             continue;
         }
 
+        // Since Ren'py is Python-based, indentation delimits scope.
         let leading_spaces = count_leading_spaces(line);
         if let Some(spaces) = menu_spaces {
+            // If indentation of current line is less than or equal to the menu block's indentation
             if leading_spaces <= spaces {
                 menu_spaces = None; // Exiting menu block
                 continue;
             }
 
+            // Heuristic for detecting menu items
             if cleaned_line.ends_with("\":") {
                 println!("Found menu item: {}", cleaned_line);
                 let route_divergence = get_route_divergence(lines[i - 1]); // Route divergence is usually a comment on the line before the menu item
@@ -74,6 +79,7 @@ pub fn mod_file(file_path: &str) -> Result<(), ModderError> {
                     println!("Leads to {}", divergence);
                 }
                 
+                // Read the rest of the choice block to get additional details
                 let choice_details = get_details(&lines[i + 1..], leading_spaces);
                 let formatted_choice = format_choice(cleaned_line, choice_details, named_malo, route_divergence, leading_spaces);
                 println!("Formatted choice: {}", formatted_choice);
@@ -147,15 +153,23 @@ fn format_choice(choice: &str, choice_details: ChoiceDetails, named_malo: bool, 
 }
 
 fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
+    // The dev usually keeps relevant variables and comments immediately after the start of the menu item
     let mut in_variables = true;
+    // Indicates if the choice immediately leads to an H-Scene
     let mut h_scene = false;
+    // Holds the change in player's reputation with MalO
     let mut malo_rep_change = None;
+    // Holds the bad ending, if any
     let mut bad_ending = None;
+    // Holds the proper ending, if any
     let mut ending = None;
+    // Holds the possible route changes, if any
+    // Used to override the route determined through the preceding comment
     let mut route_override = None;
     for line in lines {
         let leading_spaces = count_leading_spaces(line);
         let cleaned_line = line.trim();
+        // Don't want to break parsing if the line is empty (will cause leading_spaces to be 0)
         if leading_spaces <= indent_size && !cleaned_line.is_empty() {
             break; // Exit if we are no longer in the same block
         }
@@ -185,11 +199,13 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
                 else if H_PATTERN.is_match(cleaned_line) {
                     h_scene = true;
                 }
+                // Some of these endings can actually branch to different endings based on player choices
+                // But we don't have access to player data, so we can only guess
                 else if cleaned_line.contains("a3_si_zellen = True") {
                     ending = Some("Caged Ending".to_string());
                 }
                 else if cleaned_line.contains("a3_helped_zellen = False") {
-
+                    // Forgot what was supposed to go here
                 }
                 else if cleaned_line.contains("a3_GTA_MalOd = True") {
                     route_override = Some("Possible Bad Ending".to_string());
@@ -202,9 +218,11 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
                 in_variables = false;
             }
         }
+        // Some H-Scenes may either set the _h variable or check if hscene_on is set, so both checks are needed
         else if cleaned_line.contains("persistent.hscene_on") {
             h_scene = true;
         }
+        // Jumps may indicate an ending
         else if cleaned_line.starts_with("jump") {
             let end = get_ending(cleaned_line);
             if let Some(end) = end {
@@ -262,6 +280,7 @@ fn get_route_divergence(line: &str) -> Option<String> {
 }
 
 fn normalize_route_name(route_name: &str) -> Option<String> {
+    // A lot of the naming is kept from the original mod this was based on
     match route_name {
         "Coomer/Waifu Route" => Some("Coomer/Waifu Route".to_string()),
         "Friendly Route" => Some("Friendly Route".to_string()),
