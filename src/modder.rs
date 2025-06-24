@@ -32,15 +32,17 @@ struct ChoiceDetails {
     malo_rep_change: Option<RepChange>,
     bad_ending: Option<String>,
     ending: Option<String>,
+    route_divergence: Option<String>,
 }
 
 impl ChoiceDetails {
-    fn new(h_scene: bool, malo_rep_change: Option<RepChange>, bad_ending: Option<String>, ending: Option<String>) -> Self {
+    fn new(h_scene: bool, malo_rep_change: Option<RepChange>, bad_ending: Option<String>, ending: Option<String>, route_divergence: Option<String>) -> Self {
         ChoiceDetails {
             h_scene,
             malo_rep_change,
             bad_ending,
             ending,
+            route_divergence,
         }
     }
 }
@@ -95,7 +97,7 @@ pub fn mod_file(file_path: &str) -> Result<(), ModderError> {
 
 fn format_choice(choice: &str, choice_details: ChoiceDetails, named_malo: bool, route_name: Option<String>, indent_size: usize) -> String {
     let mut choice = choice.strip_suffix("\":").unwrap().to_string();
-    let ChoiceDetails { h_scene, malo_rep_change, bad_ending, ending } = choice_details;
+    let ChoiceDetails { h_scene, malo_rep_change, bad_ending, ending, route_divergence } = choice_details;
     if let Some(rep_change) = malo_rep_change {
         match rep_change {
             RepChange::Increase(value) => {
@@ -125,8 +127,16 @@ fn format_choice(choice: &str, choice_details: ChoiceDetails, named_malo: bool, 
         choice = format!("{} [red]{}", choice, ending);
     }
 
-    if let Some(route) = route_name {
+    let mut route_set = false;
+    if let Some(route) = route_divergence {
         choice = format!("{} [blue]{}", choice, route);
+        route_set = true;
+    }
+
+    if !route_set {
+        if let Some(route) = route_name {
+            choice = format!("{} [blue]{}", choice, route);
+        }
     }
 
     if let Some(ending) = ending {
@@ -142,6 +152,7 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
     let mut malo_rep_change = None;
     let mut bad_ending = None;
     let mut ending = None;
+    let mut route_override = None;
     for line in lines {
         let leading_spaces = count_leading_spaces(line);
         let cleaned_line = line.trim();
@@ -180,6 +191,12 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
                 else if cleaned_line.contains("a3_helped_zellen = False") {
 
                 }
+                else if cleaned_line.contains("a3_GTA_MalOd = True") {
+                    route_override = Some("Possible Bad Ending".to_string());
+                }
+                else if cleaned_line.contains("label bye_bye_MalO:") {
+                    ending = Some("True Ending".to_string());
+                }
             }
             else {
                 in_variables = false;
@@ -203,7 +220,7 @@ fn get_details(lines: &[&str], indent_size: usize) -> ChoiceDetails {
         println!("Choice leads to H-Scene");
     }
 
-    ChoiceDetails::new(h_scene, malo_rep_change, bad_ending, ending)
+    ChoiceDetails::new(h_scene, malo_rep_change, bad_ending, ending, route_override)
 }
 
 fn get_ending(line: &str) -> Option<Ending> {
